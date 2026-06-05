@@ -1,0 +1,6 @@
+[package]
+name = "ternary-inventory"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Items, inventory, equipment, and loot tables with ternary-valued properties for SuperInstance"
