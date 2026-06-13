@@ -1,75 +1,88 @@
-# ternary-inventory
+# Ternary Inventory — Items, Equipment, and Loot Tables with Ternary Properties
 
-**Items, equipment, loot tables, and trading for ternary-valued game systems.**
+**Ternary Inventory** provides a complete item system for ternary game and simulation environments. Every item carries a ternary value in {-1, 0, +1} representing its polarity (cursed, mundane, blessed). It includes stackable items, equipment slots bound to agents, weighted loot tables for probabilistic drops, and a trade offer system for agent-to-agent exchange.
 
-Every game needs items. Every item has properties. When your properties are ternary — `{-1 = cursed, 0 = mundane, +1 = enchanted}` — the entire inventory system becomes beautifully simple. No floating-point stats. No power creep calculations. Just three states per property, and every item tells you exactly what it is.
+## Why It Matters
 
-This crate provides a complete item system: creation, inventory management, equipment slots, loot tables with drop probabilities, and trade offers between agents.
+Resource management systems need richer item models than simple count-based inventories. The ternary property system adds a meaningful classification to every item: blessed items (+1) enhance agents, cursed items (-1) hinder them, and mundane items (0) are neutral. This creates interesting strategic decisions: do you equip a cursed item for its raw stats, or hold out for a blessed equivalent? In fleet simulation contexts, the same system models GPU resources: optimized kernels (+1), stock implementations (0), and deprecated paths (-1).
 
-## What's Inside
+## How It Works
 
-- **`Item`** — id, name, weight, ternary value (`Negative`/`Zero`/`Positive`), and tags
-- **`Inventory`** — capacity-bounded collection of items. Weight limits, item stacking, find by tag/value
-- **`EquipmentSlot`** — bind items to named slots (head, hands, weapon, etc.)
-- **`LootTable`** — probabilistic drops. Define items with drop weights, roll for loot
-- **`TradeOffer`** — structured exchange between two inventories with validation
-- **`craft(recipe, inventory)`** — consume materials, produce new items
+### Items and Stacks
 
-## Quick Example
+Each `Item` has: `id`, `name`, `weight`, `ternary_value` {-1, 0, +1}, and `tags` (for filtering). `ItemStack` bundles multiple copies: `total_weight = item.weight × count`. Stack operations are O(1).
 
-```rust
-use ternary_inventory::*;
+### Inventory
 
-// Create items
-let sword = Item::new(1, "Rusty Sword", 3.0, Ternary::Negative)
-    .with_tag("weapon")
-    .with_tag("metal");
+The `Inventory` type holds a collection of item stacks with capacity tracking:
 
-let ring = Item::new(2, "Lucky Ring", 0.1, Ternary::Positive)
-    .with_tag("accessory")
-    .with_tag("magic");
+- **Weight limit**: Sum of all stack weights cannot exceed capacity
+- **Slot limit**: Maximum number of unique item types
+- **Ternary balance**: Tracks the sum of ternary values across all items
 
-// Manage inventory
-let mut bag = Inventory::new(50.0); // 50 kg capacity
-bag.add(sword.clone()).unwrap();
-bag.add(ring.clone()).unwrap();
+Adding/removing items is O(s) for s stacks (linear scan for existing entries).
 
-// Equip
-let mut equip = EquipmentSlots::new();
-equip.equip("weapon", sword.clone());
-equip.equip("ring", ring.clone());
+### Equipment System
 
-// Loot table
-let mut loot = LootTable::new();
-loot.add(Item::new(3, "Gold Coin", 0.01, Ternary::Zero), 50.0); // common
-loot.add(Item::new(4, "Enchanted Gem", 0.1, Ternary::Positive), 5.0); // rare
+`EquipmentSlot` binds an item to a specific slot on an agent (head, body, hands, etc.). Equipping replaces the current item; unequipping returns it to inventory. The ternary value of equipped items modifies the agent's stats:
 
-let drops = loot.roll(3); // roll 3 times
+```
+agent_power = base_power + Σ equipped_items.ternary_value
 ```
 
-## The Insight
+### Loot Tables
 
-**Three-valued items are enough.** Most RPG systems have 0-100 stat ranges that nobody reads. Ternary values force design clarity: an item is either *bad*, *neutral*, or *good*. Players understand that instantly. "This sword is cursed (-1). This ring is enchanted (+1). That potion is mundane (0)." No math required.
+`LootTable` provides weighted probabilistic drops. Each entry has an item template, a drop weight, and a quantity range. Rolling the table selects items proportional to weight:
 
-**Use cases:**
-- **Roguelike games** — lightweight item system with clear ternary properties
-- **Board game engines** — item cards with ternary stats
-- **Economic simulations** — goods with quality ratings (negative/neutral/positive)
-- **Asset management** — tag items as liabilities/neutral/assets
-- **Educational games** — teach categorization with ternary-valued objects
+```
+P(item_i) = weight_i / Σ weights
+```
 
-## See Also
+O(n) for n entries per roll.
 
-- **ternary-auction** — buy and sell these items through auction mechanisms
-- **ternary-trust** — trust between trading partners affects deal quality
-- **ternary-consensus** — group decisions about inventory management
-- **ternary-shipyard** — construction systems that consume inventory items
+### Trade Offers
 
-## Install
+`TradeOffer` represents a proposed exchange between two agents: `give: Vec<ItemStack>`, `receive: Vec<ItemStack>`. The trade system validates weight capacity on both sides before executing. Atomic swap semantics: either both sides complete or neither does.
+
+## Quick Start
+
+```rust
+use ternary_inventory::{Item, Ternary, ItemStack, Inventory};
+
+// Create items
+let sword = Item::new(1, "Sword", 5.0, Ternary::Positive).with_tag("weapon");
+let curse = Item::new(2, "Cursed Ring", 0.1, Ternary::Negative).with_tag("accessory");
+
+// Build inventory
+let stack = ItemStack::new(sword, 1);
+// inv.add(stack);
+```
 
 ```bash
 cargo add ternary-inventory
 ```
+
+## API
+
+| Type / Function | Description |
+|---|---|
+| `Item` | `{ id, name, weight, ternary_value, tags }` |
+| `ItemStack` | Stackable: `{ item, count }`, `total_weight()` |
+| `Inventory` | Collection with weight/slot limits |
+| `EquipmentSlot` | Binds items to agent body parts |
+| `LootTable` | Weighted probabilistic drops |
+| `TradeOffer` | Atomic item exchange between agents |
+| `Ternary` | `Negative(-1)`, `Zero(0)`, `Positive(+1)` |
+
+## Architecture Notes
+
+The inventory system manages virtual resources in **SuperInstance** game-theoretic simulations. Items model the γ (growth/blessed) and η (entropy/cursed) contributions to agent capability — the conservation law γ + η = C ensures total agent power is bounded. See [Architecture](https://github.com/SuperInstance/SuperInstance/blob/main/ARCHITECTURE.md).
+
+## References
+
+- Salen, Katie & Zimmerman, Eric. *Rules of Play*, MIT Press, 2003 — game economy design.
+- Sirlin, David. *Playing to Win*, Lulu, 2006 — balancing game items.
+- Schell, Jesse. *The Art of Game Design*, CRC Press, 2019.
 
 ## License
 
