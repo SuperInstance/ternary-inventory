@@ -84,6 +84,20 @@ The inventory system manages virtual resources in **SuperInstance** game-theoret
 - Sirlin, David. *Playing to Win*, Lulu, 2006 — balancing game items.
 - Schell, Jesse. *The Art of Game Design*, CRC Press, 2019.
 
+
+
+## Complexity Summary
+
+| Operation | Time | Notes |
+|---|---|---|
+| Item creation | O(1) | Stack allocation |
+| Inventory add | O(s) for s stacks | Linear scan for merge |
+| Equipment equip/unequip | O(1) | Direct slot access |
+| Loot table roll | O(n) for n entries | Weighted proportional |
+| Trade validation | O(g + r) | g give items, r receive items |
+
+The ternary value system adds O(1) overhead to all operations — just one extra i8 comparison for blessing/curse classification.
+
 ## License
 
 MIT
